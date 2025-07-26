@@ -1,13 +1,11 @@
 [package]
-name = "test_gpu_deflection"
+name = "mytest"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib","rlib"]
-
 [dependencies]
-cust = "0.3.2"
+cust = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cust", branch = "main" }
+nanorand = "0.7"
 
 [build-dependencies]
-cuda_builder = "0.3.0"
+cuda_builder = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_builder", branch = "main" }

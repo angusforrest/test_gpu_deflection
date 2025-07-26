@@ -1,11 +1,10 @@
 [package]
-name = "deflection-kernels"
+name = "mytest-kernels"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-cuda_std = "0.2.2"
+cuda_std = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_std", branch = "main" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-
