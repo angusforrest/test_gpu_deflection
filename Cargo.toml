@@ -7,4 +7,7 @@ edition = "2024"
 crate-type = ["cdylib","rlib"]
 
 [dependencies]
-cuda_std = "0.2.2"
+cust = "0.3.2"
+
+[build-dependencies]
+cuda_builder = "0.3.0"
