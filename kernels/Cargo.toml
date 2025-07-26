@@ -1,5 +1,5 @@
 [package]
-name = "test_gpu_deflection-kernels"
+name = "test_gpu_deflection-gemm-kernels"
 version = "0.1.0"
 edition = "2024"
 

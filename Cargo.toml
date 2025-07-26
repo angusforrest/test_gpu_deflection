@@ -4,8 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+blastoff = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "blastoff", branch = "main" }
+cuda_std = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_std", branch = "main" }
 cust = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cust", branch = "main" }
-nanorand = "0.7"
+cust_raw = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cust_raw", branch = "main", features = ["driver"] }
+ndarray = { version = "0.16", features = ["approx"] }
+ndarray-rand = "0.15.0"
+rand = "0.9"
 
 [build-dependencies]
 cuda_builder = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_builder", branch = "main" }
