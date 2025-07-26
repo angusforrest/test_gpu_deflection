@@ -8,3 +8,5 @@ cuda_std = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_std"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[workspace]
