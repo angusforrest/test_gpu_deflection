@@ -1,5 +1,5 @@
 [package]
-name = "mytest"
+name = "test_gpu_deflection"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,3 +9,5 @@ nanorand = "0.7"
 
 [build-dependencies]
 cuda_builder = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_builder", branch = "main" }
+
+[workspace]

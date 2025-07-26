@@ -472,15 +472,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
-name = "mytest"
-version = "0.1.0"
-dependencies = [
- "cuda_builder",
- "cust",
- "nanorand",
-]
-
-[[package]]
 name = "nanorand"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -881,6 +872,15 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
+]
+
+[[package]]
+name = "test_gpu_deflection"
+version = "0.1.0"
+dependencies = [
+ "cuda_builder",
+ "cust",
+ "nanorand",
 ]
 
 [[package]]
