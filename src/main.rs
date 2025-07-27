@@ -5,9 +5,10 @@ use std::f32::consts::TAU;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
+use rayon::prelude::*;
 
 const N: usize = 1024;
-const STEPS: usize = 1000;
+const STEPS: usize = 10000;
 const DT: f32 = 0.01;
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
@@ -25,6 +26,96 @@ fn lorenz_derivatives(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
     (dx, dy, dz)
 }
 
+fn compute_energies(state_out: &[f32], n: usize, steps: usize, g: f32, mass: f32) -> Vec<f32> {
+    let mut energies = Vec::with_capacity(steps);
+
+    for s in 0..steps {
+        let mut ke = 0.0;
+        let mut pe = 0.0;
+
+        // kinetic
+        for i in 0..n {
+            let offset = (s * n + i) * 6;
+            let vx = state_out[offset + 3];
+            let vy = state_out[offset + 4];
+            let vz = state_out[offset + 5];
+            ke += 0.5 * mass * (vx * vx + vy * vy + vz * vz);
+        }
+
+        // potential (pairwise)
+        let base_offset = s * n * 6;
+
+        for i in 0..n {
+            let xi = state_out[base_offset + i * 6 + 0];
+            let yi = state_out[base_offset + i * 6 + 1];
+            let zi = state_out[base_offset + i * 6 + 2];
+
+            for j in 0..n {
+                if i == j { continue; }
+
+                let xj = state_out[base_offset + j * 6 + 0];
+                let yj = state_out[base_offset + j * 6 + 1];
+                let zj = state_out[base_offset + j * 6 + 2];
+
+                let dx = xi - xj;
+                let dy = yi - yj;
+                let dz = zi - zj;
+                let r = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                pe -= g * mass * mass / r;
+            }
+        }
+
+        energies.push(ke + pe);
+    }
+
+    energies
+}
+
+fn compute_energies_parallel(state_out: &[f32], n: usize, steps: usize, g: f32, mass: f32) -> Vec<f32> {
+    (0..steps).into_par_iter().map(|s| {
+        let mut ke = 0.0;
+        let mut pe = 0.0;
+
+        // kinetic
+        for i in 0..n {
+            let offset = (s * n + i) * 6;
+            let vx = state_out[offset + 3];
+            let vy = state_out[offset + 4];
+            let vz = state_out[offset + 5];
+            ke += 0.5 * mass * (vx * vx + vy * vy + vz * vz);
+        }
+
+        // potential (pairwise)
+        let base_offset = s * n * 6;
+
+        for i in 0..n {
+            let xi = state_out[base_offset + i * 6 + 0];
+            let yi = state_out[base_offset + i * 6 + 1];
+            let zi = state_out[base_offset + i * 6 + 2];
+
+            for j in 0..n {
+                if i == j {
+                    continue;
+                }
+
+                let xj = state_out[base_offset + j * 6 + 0];
+                let yj = state_out[base_offset + j * 6 + 1];
+                let zj = state_out[base_offset + j * 6 + 2];
+
+                let dx = xi - xj;
+                let dy = yi - yj;
+                let dz = zi - zj;
+                let r = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                pe -= g * mass * mass / r;
+            }
+        }
+
+        ke + pe
+    }).collect()
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // CUDA setup
     let _ctx = cust::quick_init()?;
@@ -35,11 +126,32 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut rng = rand::rng();
     // initial cond
+    // for i in 0..N {
+    //     let x = rng.random_range(-10.0..10.0);
+    //     let y = rng.random_range(-10.0..10.0);
+    //     let z = rng.random_range(10.0..30.0);
+    //     let (vx, vy, vz) = lorenz_derivatives(x, y, z);
+
+    //     let offset = i * 6;
+    //     state_out[offset + 0] = x;
+    //     state_out[offset + 1] = y;
+    //     state_out[offset + 2] = z;
+    //     state_out[offset + 3] = vx;
+    //     state_out[offset + 4] = vy;
+    //     state_out[offset + 5] = vz;
+    // }
+
     for i in 0..N {
-        let x = rng.random_range(-10.0..10.0);
-        let y = rng.random_range(-10.0..10.0);
-        let z = rng.random_range(10.0..30.0);
-        let (vx, vy, vz) = lorenz_derivatives(x, y, z);
+        // circular for testing
+        let r = rng.gen_range(1.0..5.0);
+        let theta = rng.gen_range(0.0..TAU);
+        let x = r * theta.cos();
+        let y = r * theta.sin();
+        let z = 0.0;
+        let v = (G * M_S / r).sqrt();
+        let vx = -v * theta.sin();
+        let vy =  v * theta.cos();
+        let vz = 0.0;
 
         let offset = i * 6;
         state_out[offset + 0] = x;
@@ -71,6 +183,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     stream.synchronize()?;
 
     dev_state_out.copy_to(&mut state_out)?;
+
+    let energies = compute_energies(&state_out, N, STEPS, G, M_S);
+    let mut ef = File::create("energy.csv")?;
+    writeln!(ef, "step,energy")?;
+    for (i, e) in energies.iter().enumerate() {
+        writeln!(ef, "{},{}", i, e)?;
+    }
+
+    let energies_parallel = compute_energies_parallel(&state_out, N, STEPS, G, M_S);
+    let mut ef = File::create("energy_parallel.csv")?;
+    writeln!(ef, "step,energy")?;
+    for (i, e) in energies.iter().enumerate() {
+        writeln!(ef, "{},{}", i, e)?;
+    }
 
     let final_offset = ((STEPS - 1) * N + 0) * 6;
     println!("Final x[0]: {}", state_out[final_offset + 0]);

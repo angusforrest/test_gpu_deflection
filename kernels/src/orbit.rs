@@ -49,17 +49,49 @@ pub unsafe fn euler_step(
     let vy_old = *state_out.add(prev_offset + 4);
     let vz_old = *state_out.add(prev_offset + 5);
 
-    let (dx, dy, dz) = lorenz_derivatives(x, y, z);
+    let (ax, ay, az) = compute_acceleration(x, y, z);
 
+    // let (dx, dy, dz) = lorenz_derivatives(x, y, z);   
     // normal euler step
-    let x_new = x + dx * dt;
-    let y_new = y + dy * dt;
-    let z_new = z + dz * dt;
+    // let x_new = x + dx * dt;
+    // let y_new = y + dy * dt;
+    // let z_new = z + dz * dt;
+
+    // *state_out.add(curr_offset + 0) = x_new;
+    // *state_out.add(curr_offset + 1) = y_new;
+    // *state_out.add(curr_offset + 2) = z_new;
+    // *state_out.add(curr_offset + 3) = dx;
+    // *state_out.add(curr_offset + 4) = dy;
+    // *state_out.add(curr_offset + 5) = dz;
+
+    // Better euler:
+    // let vx_new = vx_old + ax * dt;
+    // let vy_new = vy_old + ay * dt;
+    // let vz_new = vz_old + az * dt;
+
+    // update position using updated velocity
+    // let x_new = x + vx_new * dt;
+    // let y_new = y + vy_new * dt;
+    // let z_new = z + vz_new * dt;
+
+    // Traditional euler:
+    // update position using *current* velocity
+    let x_new = x + vx_old * dt;
+    let y_new = y + vy_old * dt;
+    let z_new = z + vz_old * dt;
+
+    // acceleration at old position
+    let (ax, ay, az) = compute_acceleration(x, y, z);
+
+    // update velocity
+    let vx_new = vx_old + ax * dt;
+    let vy_new = vy_old + ay * dt;
+    let vz_new = vz_old + az * dt;
 
     *state_out.add(curr_offset + 0) = x_new;
     *state_out.add(curr_offset + 1) = y_new;
     *state_out.add(curr_offset + 2) = z_new;
-    *state_out.add(curr_offset + 3) = dx;
-    *state_out.add(curr_offset + 4) = dy;
-    *state_out.add(curr_offset + 5) = dz;
+    *state_out.add(curr_offset + 3) = vx_new;
+    *state_out.add(curr_offset + 4) = vy_new;
+    *state_out.add(curr_offset + 5) = vz_new;
 }
