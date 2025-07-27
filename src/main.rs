@@ -1,10 +1,10 @@
 use cust::prelude::*;
+use rand::Rng;
 use std::error::Error;
+use std::f32::consts::TAU;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
-use rand::Rng;
-use std::f32::consts::TAU;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
@@ -12,6 +12,10 @@ const DT: f32 = 0.01;
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 static PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/kernels.ptx"));
+
+const SIGMA: f32 = 10.0;
+const RHO: f32 = 28.0;
+const BETA: f32 = 8.0 / 3.0;
 
 #[inline(always)]
 fn lorenz_derivatives(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
@@ -29,13 +33,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut state_out = vec![0.0f32; N * STEPS * 6];
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     // initial cond
     for i in 0..N {
-        let x = rng.gen_range(-10.0..10.0);
-        let y = rng.gen_range(-10.0..10.0);
-        let z = rng.gen_range(10.0..30.0);
-        let vx,vy,vz = lorenz_derivatives(x,y,z);
+        let x = rng.random_range(-10.0..10.0);
+        let y = rng.random_range(-10.0..10.0);
+        let z = rng.random_range(10.0..30.0);
+        let (vx, vy, vz) = lorenz_derivatives(x, y, z);
 
         let offset = i * 6;
         state_out[offset + 0] = x;
@@ -79,7 +83,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     for ((x, y), z) in x0.iter().zip(y0.iter()).zip(z0.iter()) {
         writeln!(file, "{},{},{}", x, y, z)?;
     }
-
 
     Ok(())
 }
