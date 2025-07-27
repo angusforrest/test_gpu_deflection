@@ -11,7 +11,7 @@ fn differential_system(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
 
 #[kernel]
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn euler_integration_vx(
+pub unsafe fn euler_update_velocity_component(
     x_out: *const f32,
     y_out: *const f32,
     vx_out: *mut f32,
@@ -34,7 +34,7 @@ pub unsafe fn euler_integration_vx(
 
 #[kernel]
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn euler_integration_x(
+pub unsafe fn euler_update_position_component(
     x_out: *mut f32,
     vx_out: *const f32,
     n: usize,

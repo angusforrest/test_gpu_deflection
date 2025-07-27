@@ -50,13 +50,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut dev_vx_out = vx_out.as_slice().as_dbuf()?;
     let mut dev_vy_out = vy_out.as_slice().as_dbuf()?;
 
-    let func_vx = module.get_function("euler_integration_vx")?;
-    let func_x = module.get_function("euler_integration_x")?;
+    let kernel_update_velocity = module.get_function("euler_update_velocity_component")?;
+    let kernel_update_position = module.get_function("euler_update_position_component")?;
 
     for step in 1..STEPS {
         unsafe {
             launch!(
-                func_vx<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+                kernel_update_velocity<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
                     dev_x_out.as_device_ptr(),
                     dev_y_out.as_device_ptr(),
                     dev_vx_out.as_device_ptr(),
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?;
 
             launch!(
-                func_vx<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+                kernel_update_velocity<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
                     dev_y_out.as_device_ptr(),
                     dev_x_out.as_device_ptr(),
                     dev_vy_out.as_device_ptr(),
@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?;
 
             launch!(
-                func_x<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+                kernel_update_position<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
                     dev_x_out.as_device_ptr(),
                     dev_vx_out.as_device_ptr(),
                     N,
@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?;
 
             launch!(
-                func_x<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+                kernel_update_position<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
                     dev_y_out.as_device_ptr(),
                     dev_vy_out.as_device_ptr(),
                     N,
