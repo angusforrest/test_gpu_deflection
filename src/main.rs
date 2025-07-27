@@ -13,6 +13,14 @@ const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 static PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/kernels.ptx"));
 
+#[inline(always)]
+fn lorenz_derivatives(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+    let dx = SIGMA * (y - x);
+    let dy = -x * z + RHO * x - y;
+    let dz = x * y - BETA * z;
+    (dx, dy, dz)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // CUDA setup
     let _ctx = cust::quick_init()?;
@@ -27,9 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let x = rng.gen_range(-10.0..10.0);
         let y = rng.gen_range(-10.0..10.0);
         let z = rng.gen_range(10.0..30.0);
-        let vx = 0.0;
-        let vy = 0.0;
-        let vz = 0.0;
+        let vx,vy,vz = lorenz_derivatives(x,y,z);
 
         let offset = i * 6;
         state_out[offset + 0] = x;
