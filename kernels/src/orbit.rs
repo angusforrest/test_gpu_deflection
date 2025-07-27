@@ -5,9 +5,8 @@ const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 
 #[inline(always)]
-fn potential_thingy(x: f32, y: f32) -> f32 {
-    let r2 = x * x + y * y;
-    G * M_S * x / powf(r2, 1.5)
+fn differential_system(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+    return (10(y - x), -x * z + 28x - y, x * y - 8 * z / 3);
 }
 
 #[kernel]
@@ -29,7 +28,7 @@ pub unsafe fn euler_integration_vx(
         let x = *x_out.add(prev_offset + tid);
         let y = *y_out.add(prev_offset + tid);
         let prev_vx = *vx_out.add(prev_offset + tid);
-        *vx_out.add(step_offset + tid) = prev_vx - potential_thingy(x, y) * dt;
+        *vx_out.add(step_offset + tid) = prev_vx - potential_thingy(x, y, z) * dt;
     }
 }
 
