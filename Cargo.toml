@@ -10,7 +10,7 @@ cust = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cust", branch
 cust_raw = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cust_raw", branch = "main", features = ["driver"] }
 ndarray = { version = "0.16", features = ["approx"] }
 ndarray-rand = "0.15.0"
-rand = "0.9"
+rand = "0.9.2"
 
 [build-dependencies]
 cuda_builder = { git = "https://github.com/Rust-GPU/Rust-CUDA", package = "cuda_builder", branch = "main" }

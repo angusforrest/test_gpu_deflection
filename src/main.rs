@@ -3,6 +3,8 @@ use std::error::Error;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
+use rand::Rng;
+use std::f32::consts::TAU;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
@@ -22,10 +24,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut vx_out = vec![0.1f32; total_size];
     let mut vy_out = vec![0.0f32; total_size];
 
-    // step 0 positions
+    let mut rng = rand::thread_rng();
+    // initial cond
     for i in 0..N {
-        x_out[i] = 1.0 + i as f32 * 0.001;
-        y_out[i] = 0.0;
+
+        let r = rng.gen_range(1.0..5.0);
+        // [0, 2pi)
+        let theta = rng.gen_range(0.0..TAU);
+
+        let x = r * theta.cos();
+        let y = r * theta.sin();
+        x_out[i] = x;
+        y_out[i] = y;
+
+        // v = sqrt(GM / r)
+        let v = (39.5 / r).sqrt();
+        let vx = -v * theta.sin();
+        let vy =  v * theta.cos();
+        vx_out[i] = vx;
+        vy_out[i] = vy;
     }
 
     let mut dev_x_out = x_out.as_slice().as_dbuf()?;
