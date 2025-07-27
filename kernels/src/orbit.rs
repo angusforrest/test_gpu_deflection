@@ -4,6 +4,18 @@ use libm::powf;
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 
+const SIGMA: f32 = 10.0;
+const RHO: f32 = 28.0;
+const BETA: f32 = 8.0 / 3.0;
+
+#[inline(always)]
+fn lorenz_derivatives(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+    let dx = SIGMA * (y - x);
+    let dy = -x * z + RHO * x - y;
+    let dz = x * y - BETA * z;
+    (dx, dy, dz)
+}
+
 #[inline(always)]
 fn compute_acceleration(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
     // newtonian grav
@@ -28,7 +40,7 @@ pub unsafe fn euler_step(
     }
 
     let prev_offset = ((current_step - 1) * n + tid) * 6;
-    let curr_offset = ((current_step) * n + tid) * 6;
+    let curr_offset = (current_step * n + tid) * 6;
 
     let x = *state_out.add(prev_offset + 0);
     let y = *state_out.add(prev_offset + 1);
@@ -37,23 +49,17 @@ pub unsafe fn euler_step(
     let vy_old = *state_out.add(prev_offset + 4);
     let vz_old = *state_out.add(prev_offset + 5);
 
-    let (ax, ay, az) = compute_acceleration(x, y, z);
+    let (dx, dy, dz) = lorenz_derivatives(x, y, z);
 
-    // euler step: velocity first
-    let vx_new = vx_old + ax * dt;
-    let vy_new = vy_old + ay * dt;
-    let vz_new = vz_old + az * dt;
-
-    // update position using the *updated* velocity
-    // standard explicit Euler would use vx_old here, this is slightly better in terms of energy behavior
-    let x_new = x + vx_new * dt;
-    let y_new = y + vy_new * dt;
-    let z_new = z + vz_new * dt;
+    // normal euler step
+    let x_new = x + dx * dt;
+    let y_new = y + dy * dt;
+    let z_new = z + dz * dt;
 
     *state_out.add(curr_offset + 0) = x_new;
     *state_out.add(curr_offset + 1) = y_new;
     *state_out.add(curr_offset + 2) = z_new;
-    *state_out.add(curr_offset + 3) = vx_new;
-    *state_out.add(curr_offset + 4) = vy_new;
-    *state_out.add(curr_offset + 5) = vz_new;
+    *state_out.add(curr_offset + 3) = dx;
+    *state_out.add(curr_offset + 4) = dy;
+    *state_out.add(curr_offset + 5) = dz;
 }

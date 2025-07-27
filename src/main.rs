@@ -24,14 +24,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut rng = rand::thread_rng();
     // initial cond
     for i in 0..N {
-        let r = rng.gen_range(1.0..5.0);
-        let theta = rng.gen_range(0.0..TAU);
-        let x = r * theta.cos();
-        let y = r * theta.sin();
-        let z = 0.0;
-        let v = (G * M_S / r).sqrt();
-        let vx = -v * theta.sin();
-        let vy =  v * theta.cos();
+        let x = rng.gen_range(-10.0..10.0);
+        let y = rng.gen_range(-10.0..10.0);
+        let z = rng.gen_range(10.0..30.0);
+        let vx = 0.0;
+        let vy = 0.0;
         let vz = 0.0;
 
         let offset = i * 6;
