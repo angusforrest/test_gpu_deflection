@@ -5,50 +5,55 @@ const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 
 #[inline(always)]
-fn differential_system(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
-    return (10(y - x), -x * z + 28x - y, x * y - 8 * z / 3);
+fn compute_acceleration(x: f32, y: f32, z: f32) -> (f32, f32, f32) {
+    // newtonian grav
+    let r2 = x * x + y * y + z * z;
+    let r32 = powf(r2, 1.5);
+    let a = -G * M_S / r32;
+    (a * x, a * y, a * z)
 }
 
 #[kernel]
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn euler_update_velocity_component(
-    x_out: *const f32,
-    y_out: *const f32,
-    vx_out: *mut f32,
+pub unsafe fn euler_step(
+    state_out: *mut f32,
     n: usize,
     steps: usize,
     current_step: usize,
     dt: f32,
 ) {
     let tid = (thread::block_idx_x() * thread::block_dim_x() + thread::thread_idx_x()) as usize;
-    let step_offset = current_step * n;
-    let prev_offset = (current_step - 1) * n;
-
-    if tid < n {
-        let x = *x_out.add(prev_offset + tid);
-        let y = *y_out.add(prev_offset + tid);
-        let prev_vx = *vx_out.add(prev_offset + tid);
-        *vx_out.add(step_offset + tid) = prev_vx - potential_thingy(x, y, z) * dt;
+    if tid >= n {
+        return;
     }
-}
 
-#[kernel]
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn euler_update_position_component(
-    x_out: *mut f32,
-    vx_out: *const f32,
-    n: usize,
-    steps: usize,
-    current_step: usize,
-    dt: f32,
-) {
-    let tid = (thread::block_idx_x() * thread::block_dim_x() + thread::thread_idx_x()) as usize;
-    let step_offset = current_step * n;
-    let prev_offset = (current_step - 1) * n;
+    let prev_offset = ((current_step - 1) * n + tid) * 6;
+    let curr_offset = ((current_step) * n + tid) * 6;
 
-    if tid < n {
-        let prev_x = *x_out.add(prev_offset + tid);
-        let vx = *vx_out.add(step_offset + tid);
-        *x_out.add(step_offset + tid) = prev_x + vx * dt;
-    }
+    let x = *state_out.add(prev_offset + 0);
+    let y = *state_out.add(prev_offset + 1);
+    let z = *state_out.add(prev_offset + 2);
+    let vx_old = *state_out.add(prev_offset + 3);
+    let vy_old = *state_out.add(prev_offset + 4);
+    let vz_old = *state_out.add(prev_offset + 5);
+
+    let (ax, ay, az) = compute_acceleration(x, y, z);
+
+    // euler step: velocity first
+    let vx_new = vx_old + ax * dt;
+    let vy_new = vy_old + ay * dt;
+    let vz_new = vz_old + az * dt;
+
+    // update position using the *updated* velocity
+    // standard explicit Euler would use vx_old here, this is slightly better in terms of energy behavior
+    let x_new = x + vx_new * dt;
+    let y_new = y + vy_new * dt;
+    let z_new = z + vz_new * dt;
+
+    *state_out.add(curr_offset + 0) = x_new;
+    *state_out.add(curr_offset + 1) = y_new;
+    *state_out.add(curr_offset + 2) = z_new;
+    *state_out.add(curr_offset + 3) = vx_new;
+    *state_out.add(curr_offset + 4) = vy_new;
+    *state_out.add(curr_offset + 5) = vz_new;
 }
