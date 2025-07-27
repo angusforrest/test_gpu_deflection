@@ -1,6 +1,8 @@
 use cust::prelude::*;
 use std::error::Error;
 use std::ffi::CString;
+use std::fs::File;
+use std::io::Write;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
@@ -92,6 +94,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     dev_vy_out.copy_to(&mut vy_out)?;
 
     println!("Final x[0]: {}", x_out[(STEPS - 1) * N]);
+
+    let x0: Vec<f32> = (0..STEPS).map(|s| x_out[s * N + 0]).collect();
+    let y0: Vec<f32> = (0..STEPS).map(|s| y_out[s * N + 0]).collect();
+    let mut file = File::create("particle_orbit.csv")?;
+    writeln!(file, "x,y")?;
+    for (x, y) in x0.iter().zip(y0.iter()) {
+        writeln!(file, "{},{}", x, y)?;
+    }
+
 
     Ok(())
 }
