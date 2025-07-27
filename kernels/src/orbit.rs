@@ -1,15 +1,13 @@
 use cuda_std::{kernel, thread};
-use glam::Vec2;
+use libm::powf;
 
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
 
 #[inline(always)]
 fn potential_thingy(x: f32, y: f32) -> f32 {
-    // G * M_S * x / (x * x + y * y).powf(1.5) <-- what we want to do
-    let pos = Vec2::new(x, y);
-    let r2 = pos.length_squared();
-    G * M_S * x / (r2 * sqrtf(r2)) // how to get working
+    let r2 = x * x + y * y;
+    G * M_S * x / powf(r2, 1.5)
 }
 
 #[kernel]

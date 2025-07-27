@@ -179,6 +179,7 @@ version = "0.1.0"
 dependencies = [
  "cuda_std",
  "glam",
+ "libm",
 ]
 
 [[package]]
