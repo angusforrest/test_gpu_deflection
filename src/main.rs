@@ -165,16 +165,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut dev_state_out = state_out.as_slice().as_dbuf()?;
 
     let kernel_euler_step = module.get_function("euler_step")?;
+    let kernel_dopr54_step = module.get_function("dopr54_step")?;
 
     for step in 1..STEPS {
         unsafe {
+            // launch!(
+            //     kernel_euler_step<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+            //         dev_state_out.as_device_ptr(),
+            //         N,
+            //         STEPS,
+            //         step,
+            //         DT
+            //     )
+            // )?;
+            let t0 = step as f32 * DT;
             launch!(
-                kernel_euler_step<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
+                kernel_dopr54_step<<<(N as u32 + 127) / 128, 128, 0, stream>>>(
                     dev_state_out.as_device_ptr(),
                     N,
                     STEPS,
                     step,
-                    DT
+                    DT,
+                    t0
                 )
             )?;
         }
