@@ -1,8 +1,6 @@
 use cuda_std::{kernel, thread};
 use libm::powf;
-
-mod butcher;
-use butcher::{ButcherTableau, DormandPrince54 as Coeffs};
+use crate::butcher::{ButcherTableau, DormandPrince54 as Coeffs};
 
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;

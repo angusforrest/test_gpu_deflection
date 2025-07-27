@@ -1,9 +1,9 @@
 pub trait ButcherTableau {
     const ORDER: usize;
     const STAGES: usize;
-    const A: [[f32; Self::STAGES]; Self::STAGES];
-    const B: [f32; Self::STAGES];
-    const C: [f32; Self::STAGES];
+    const A: [[f32; 7]; 7];
+    const B: [f32; 7];
+    const C: [f32; 7];
 }
 
 pub struct DormandPrince54;
@@ -11,7 +11,7 @@ pub struct DormandPrince54;
 impl ButcherTableau for DormandPrince54 {
     const ORDER: usize = 5;
     const STAGES: usize = 7;
-    const A: [[f32; Self::STAGES]; Self::STAGES] = [
+    const A: [[f32; 7]; 7] = [
         [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         [1.0 / 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         [3.0 / 40.0, 9.0 / 40.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -20,6 +20,6 @@ impl ButcherTableau for DormandPrince54 {
         [9017.0 / 3168.0, -355.0 / 33.0, 46732.0 / 5247.0, 49.0 / 176.0, -5103.0 / 18656.0, 0.0, 0.0],
         [35.0 / 384.0, 0.0, 500.0 / 1113.0, 125.0 / 192.0, -2187.0 / 6784.0, 11.0 / 84.0, 0.0],
     ];
-    const B: [f32; Self::STAGES] = [35.0 / 384.0, 0.0, 500.0 / 1113.0, 125.0 / 192.0, -2187.0 / 6784.0, 11.0 / 84.0, 0.0];
-    const C: [f32; Self::STAGES] = [0.0, 1.0 / 5.0, 3.0 / 10.0, 4.0 / 5.0, 8.0 / 9.0, 1.0, 1.0];
+    const B: [f32; 7] = [35.0 / 384.0, 0.0, 500.0 / 1113.0, 125.0 / 192.0, -2187.0 / 6784.0, 11.0 / 84.0, 0.0];
+    const C: [f32; 7] = [0.0, 1.0 / 5.0, 3.0 / 10.0, 4.0 / 5.0, 8.0 / 9.0, 1.0, 1.0];
 }
