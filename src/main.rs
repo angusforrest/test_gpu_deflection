@@ -8,10 +8,12 @@ use std::io::Write;
 use rayon::prelude::*;
 
 const N: usize = 1024;
-const STEPS: usize = 10000;
+const STEPS: usize = 1000;
 const DT: f32 = 0.01;
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
+const ATOL: f32 = 1e-5;
+const RTOL: f32 = 1e-3;
 static PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/kernels.ptx"));
 
 const SIGMA: f32 = 10.0;
@@ -163,8 +165,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut dev_state_out = state_out.as_slice().as_dbuf()?;
+    let mut dev_rk_err = DeviceBuffer::<f32>::zeroed(N * STEPS)?; // just directly to avoid copy from host
 
-    let kernel_euler_step = module.get_function("euler_step")?;
+    // let kernel_euler_step = module.get_function("euler_step")?;
     let kernel_dopr54_step = module.get_function("dopr54_step")?;
 
     for step in 1..STEPS {
@@ -186,7 +189,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     STEPS,
                     step,
                     DT,
-                    t0
+                    t0,
+                    ATOL,
+                    RTOL,
+                    dev_rk_err.as_device_ptr()
                 )
             )?;
         }
@@ -195,18 +201,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     stream.synchronize()?;
 
     dev_state_out.copy_to(&mut state_out)?;
+    let mut rk_err = vec![0.0f32; N * STEPS];
+    dev_rk_err.copy_to(&mut rk_err)?;
 
-    let energies = compute_energies(&state_out, N, STEPS, G, M_S);
-    let mut ef = File::create("energy.csv")?;
-    writeln!(ef, "step,energy")?;
-    for (i, e) in energies.iter().enumerate() {
-        writeln!(ef, "{},{}", i, e)?;
-    }
+    println!("Compute finished");
+
+    // let energies = compute_energies(&state_out, N, STEPS, G, M_S);
+    // let mut ef = File::create("energy.csv")?;
+    // writeln!(ef, "step,energy")?;
+    // for (i, e) in energies.iter().enumerate() {
+    //     writeln!(ef, "{},{}", i, e)?;
+    // }
 
     let energies_parallel = compute_energies_parallel(&state_out, N, STEPS, G, M_S);
     let mut ef = File::create("energy_parallel.csv")?;
     writeln!(ef, "step,energy")?;
-    for (i, e) in energies.iter().enumerate() {
+    for (i, e) in energies_parallel.iter().enumerate() {
         writeln!(ef, "{},{}", i, e)?;
     }
 
@@ -220,6 +230,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     writeln!(file, "x,y,z")?;
     for ((x, y), z) in x0.iter().zip(y0.iter()).zip(z0.iter()) {
         writeln!(file, "{},{},{}", x, y, z)?;
+    }
+
+    // rk_err csv
+    let mut erf = File::create("rk_error.csv")?;
+    writeln!(erf, "step,particle,rk_err")?;
+    for s in 0..STEPS {
+        let row = &rk_err[s * N .. (s + 1) * N];
+        for (i, &e) in row.iter().enumerate() {
+            writeln!(erf, "{},{},{}", s, i, e)?;
+        }
     }
 
     Ok(())
