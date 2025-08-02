@@ -1,5 +1,5 @@
 use cuda_std::{kernel, thread};
-use libm::powf;
+use libm::{powf, sqrtf};
 use crate::butcher::{ButcherTableau, DormandPrince54 as Coeffs};
 
 const M_S: f32 = 1.0;
@@ -31,14 +31,14 @@ pub fn rk_norm(
     let sc_vz = atol + rtol * f32::max(vz.abs(), vz_new.abs());
 
     // might need to guard against div by 0
-    let sum = (err_x / sc_x).powi(2)
-            + (err_y / sc_y).powi(2)
-            + (err_z / sc_z).powi(2)
-            + (err_vx / sc_vx).powi(2)
-            + (err_vy / sc_vy).powi(2)
-            + (err_vz / sc_vz).powi(2);
+    let sum = powf(err_x / sc_x, 2.0)
+            + powf(err_y / sc_y, 2.0)
+            + powf(err_z / sc_z, 2.0)
+            + powf(err_vx / sc_vx, 2.0)
+            + powf(err_vy / sc_vy, 2.0)
+            + powf(err_vz / sc_vz, 2.0);
 
-    (sum / 6.0).sqrt()
+    sqrtf(sum / 6.0)
 }
 
 #[kernel]
