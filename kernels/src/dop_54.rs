@@ -1,10 +1,93 @@
 use cuda_std::{kernel, thread};
-use libm::{pow, sqrt};
+use libm::{pow, sqrt, log, floor};
 use crate::butcher::{ButcherTableau, DormandPrince54 as Coeffs};
 
 const M_S: f64 = 1.0;
 const G: f64 = 39.5;
 
+#[inline(always)]
+unsafe fn sphericalcutoff_force_tabled(x: f64, y: f64, z: f64, ar_table: *const f64, r_min: f64, dr: f64, n_ar: u32) -> (f64, f64, f64) {
+    let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
+    if r2 == 0.0 {
+        return (0.0, 0.0, 0.0);
+    }
+    let r = sqrt(r2);
+    let t = (r - r_min) / dr;
+    let i = floor(t) as usize;
+    let f = t - i as f64;
+
+    // linear interpolation
+    let i0 = i.min((n_ar - 2) as usize);
+    let ar0 = *ar_table.add(i0);
+    let ar1 = *ar_table.add(i0 + 1);
+    let ar = (1.0 - f) * ar0 + f * ar1;
+
+    let ax = ar * x / r;
+    let ay = ar * y / r;
+    let az = ar * z / r;
+    (ax, ay, az)
+}
+
+fn navarro_frenk_white_force(x: f64, y: f64, z: f64, amp: f64, a: f64) -> (f64, f64, f64) {
+    let r2 = pow(x, 2.) + pow(y, 2.) + pow(z, 2.);
+    let r = sqrt(r2);
+    let ar = -amp * (log(1. + r / a) - r / (a + r)) / r2;
+    let ax = ar * (x / r);
+    let ay = ar * (y / r);
+    let az = ar * (z / r);
+    (ax, ay, az)
+}
+
+fn miyamoto_nagai_force(x: f64, y: f64, z: f64, amp: f64, a: f64, b: f64) -> (f64, f64, f64) {
+    let R2 = pow(x, 2.) + pow(y, 2.);
+    let R = sqrt(R2);
+    let z2 = pow(z, 2.);
+    let b2 = pow(b, 2.);
+    let sqrtz2b2 = sqrt(z2 + b2);
+    let pyth = pow(a + sqrtz2b2, 2.);
+    let denom = pow(pyth + R2, 3. / 2.);
+    let aR = -amp * (R / denom);
+    let ax = aR * (x / R);
+    let ay = aR * (y / R);
+    let az = -amp * (z * (a + sqrtz2b2)) / (sqrtz2b2 * denom);
+    (ax, ay, az)
+}
+
+#[inline(always)]
+pub unsafe fn mw2014_force(
+    x: f64,
+    y: f64,
+    z: f64,
+    ar_table: *const f64,
+    r_min: f64,
+    dr: f64,
+    n_ar: u32,
+) -> (f64, f64, f64) {
+    let bulge_amp: f64 = 0.029994597188218296; // FIXME: higher precision
+    let bulge_alpha: f64 = 1.8;
+    let bulge_r1: f64 = 1.0;
+    let bulge_c2: f64 = pow(1.9 / 8., 2.);
+
+    let disk_amp: f64 = 0.7574802019; // FIXME: higher precision
+    let disk_a: f64 = 3. / 8.;
+    let disk_b: f64 = 0.28 / 8.;
+
+    let halo_amp: f64 = 4.852230533528; // FIXME: higher precision
+    let halo_a: f64 = 16. / 8.;
+
+    let (bx, by, bz) = sphericalcutoff_force_tabled(x, y, z, ar_table, r_min, dr, n_ar);
+    let (dx, dy, dz) = miyamoto_nagai_force(x, y, z, disk_amp, disk_a, disk_b);
+    let (hx, hy, hz) = navarro_frenk_white_force(x, y, z, halo_amp, halo_a);
+
+    (
+        bx + dx + hx,
+        by + dy + hy,
+        bz + dz + hz,
+    )
+}
+
+
+// Previous
 #[inline(always)]
 fn compute_acceleration(t: f64, x: f64, y: f64, z: f64) -> (f64, f64, f64) {
     let r2 = x * x + y * y + z * z;
@@ -12,6 +95,7 @@ fn compute_acceleration(t: f64, x: f64, y: f64, z: f64) -> (f64, f64, f64) {
     let a = -G * M_S / r32;
     (a * x, a * y, a * z)
 }
+
 
 #[inline(always)]
 pub fn rk_norm(
@@ -73,6 +157,10 @@ pub unsafe fn dopr54_adaptive(
     dt_min: f64,
     dt_max: f64,
     error_out: *mut f64, // last
+    ar_table: *const f64,
+    r_min: f64,
+    dr: f64,
+    n_ar: u32,
 ) {
     let tid = (thread::block_idx_x() * thread::block_dim_x() + thread::thread_idx_x()) as usize;
     if tid >= n {
@@ -134,7 +222,8 @@ pub unsafe fn dopr54_adaptive(
         }
 
         let t_stage = ti + dt_eff * (Coeffs::C[i] as f64);
-        let (axi, ayi, azi) = compute_acceleration(t_stage, xi, yi, zi);
+        // let (axi, ayi, azi) = compute_acceleration(t_stage, xi, yi, zi);
+        let (axi, ayi, azi) = mw2014_force(xi, yi, zi, ar_table, r_min, dr, n_ar);
 
         rk_x[i]  = vxi;
         rk_y[i]  = vyi;

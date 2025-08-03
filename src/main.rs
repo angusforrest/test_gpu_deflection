@@ -4,14 +4,16 @@ use rand::Rng;
 use std::error::Error;
 use std::f64::consts::TAU;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
+use std::f64::consts::PI;
+use statrs::function::gamma::{gamma, gamma_lr};
 
 static PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/kernels.ptx"));
 
 const N: usize = 1024;
 const STEPS_CAP: usize = 200000;
 
-const T_END: f64 = 10.0;
+const T_END: f64 = 40.0;
 const DT0: f64 = 0.002; // initial dt per particle
 const ATOL: f64 = 1.0e-8;
 const RTOL: f64 = 1.0e-8;
@@ -24,13 +26,41 @@ const DT_MIN: f64 = 1.0e-12;
 const DT_MAX: f64 = 0.25;
 
 const M_S: f64 = 1.0;
-const G: f64 = 39.5;
+const G: f64 = 1.0;
 
 const BLOCK_SIZE: u32 = 128;
 
 fn grid_size(n: usize, block: u32) -> (u32, u32) {
     let blocks = ((n as u32) + block - 1) / block;
     (blocks, block)
+}
+
+const N_AR: usize = 10000;
+const R_MIN: f64 = 1e-4;
+const R_MAX: f64 = 100.0;
+
+pub fn mass(r2: f64, alpha: f64, rc: f64) -> f64 {
+    2.0 * PI * pow(rc, 3.0 - alpha)
+        * gamma(1.5 - 0.5 * alpha)
+        * gamma_lr(1.5 - 0.5 * alpha, r2 / (rc * rc))
+}
+
+fn build_sphericalcutoff_force_table(
+    amp: f64,
+    alpha: f64,
+    r1: f64,
+    rc: f64,
+) -> (Vec<f64>, f64, f64) {
+    let mut table = Vec::with_capacity(N_AR);
+    let dr = (R_MAX - R_MIN) / (N_AR as f64 - 1.0);
+    for i in 0..N_AR {
+        let r = R_MIN + i as f64 * dr;
+        let r2 = r * r;
+        let m = amp * pow(r1, alpha) * mass(r2, alpha, rc);
+        let ar = -m / r2;
+        table.push(ar);
+    }
+    (table, R_MIN, dr)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -50,12 +80,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     for i in 0..N {
         let r = rng.gen_range(1.0..5.0);
         let theta = rng.gen_range(0.0..TAU);
-        let x = r * theta.cos();
-        let y = r * theta.sin();
+        // let x = r * theta.cos();
+        // let y = r * theta.sin();
+        // let z = 0.0;
+        // let v = (G * M_S / r).sqrt();
+        // let vx = -v * theta.sin();
+        // let vy =  v * theta.cos();
+        // let vz = 0.0;
+        let x = 1.0;
+        let y = 0.0;
         let z = 0.0;
-        let v = (G * M_S / r).sqrt();
-        let vx = -v * theta.sin();
-        let vy =  v * theta.cos();
+        let vx = 0.0;
+        let vy = 1.0;
         let vz = 0.0;
 
         let offset0 = (0 * N + i) * 6;
@@ -88,6 +124,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut iter = 0usize;
     let max_outer_iters = 200_000usize; // guard against infinite loops; can raise
 
+    // create table
+    let bulge_amp = 0.029994597188218296;
+    let bulge_alpha = 1.8;
+    let bulge_r1 = 1.0;
+    let bulge_rc = 1.9 / 8.0;
+
+    let (ar_table_host, r_min, dr) = build_sphericalcutoff_force_table(bulge_amp, bulge_alpha, bulge_r1, bulge_rc);
+    let dev_ar_table = DeviceBuffer::from_slice(&ar_table_host)?;
+
     loop {
         unsafe {
             launch!(
@@ -108,7 +153,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     SAFETY,
                     DT_MIN,
                     DT_MAX,
-                    dev_err.as_device_ptr()
+                    dev_err.as_device_ptr(),
+                    dev_ar_table.as_device_ptr(),
+                    r_min,
+                    dr,
+                    N_AR as u32
                 )
             )?;
         }

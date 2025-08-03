@@ -13,7 +13,7 @@ ax.set_xlabel("x (AU)")
 ax.set_ylabel("y (AU)")
 ax.set_zlabel("z (AU)")
 ax.grid(True)
-plt.savefig("orbit_test_3d.png")
+plt.savefig("orbit_test_3d.png", dpi=300)
 
 # 2d projection
 # fig2, ax2 = plt.subplots(figsize=(6, 6))
