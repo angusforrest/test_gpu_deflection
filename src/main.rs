@@ -15,6 +15,8 @@ use std::f32::consts::TAU;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
+mod precompute_spherical;
+use precompute_spherical::precompute_sphericalcutoff_force;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
@@ -296,6 +298,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         writeln!(file_mn, "{},{}", x, ax_mn)?;
         writeln!(file_nfw, "{},{}", x, ax_nfw)?;
     }
+    
+    let rc = sqrt(c2);
+    let r_min = 1e-4;
+    let r_max = 100.0;
+    let n_points = 10000;
+    precompute_sphericalcutoff_force(
+        "spherical_cutoff_table.csv",
+        AMP_S as f64,
+        alpha as f64,
+        r1 as f64,
+        rc as f64,
+        r_min,
+        r_max,
+        n_points,
+    );
 
     Ok(())
 }
