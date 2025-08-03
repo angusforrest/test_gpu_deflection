@@ -1,15 +1,15 @@
 use cust::prelude::*;
+use libm::expf;
+use libm::powf;
+use libm::sqrtf;
+use ndarray::Array1;
 use rand::Rng;
+use rayon::prelude::*;
 use std::error::Error;
 use std::f32::consts::TAU;
 use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
-use rayon::prelude::*;
-use ndarray::Array1;
-use libm::expf;
-use libm::powf;
-use libm::sqrtf;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
@@ -57,7 +57,9 @@ fn compute_energies(state_out: &[f32], n: usize, steps: usize, g: f32, mass: f32
             let zi = state_out[base_offset + i * 6 + 2];
 
             for j in 0..n {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
 
                 let xj = state_out[base_offset + j * 6 + 0];
                 let yj = state_out[base_offset + j * 6 + 1];
@@ -78,48 +80,57 @@ fn compute_energies(state_out: &[f32], n: usize, steps: usize, g: f32, mass: f32
     energies
 }
 
-fn compute_energies_parallel(state_out: &[f32], n: usize, steps: usize, g: f32, mass: f32) -> Vec<f32> {
-    (0..steps).into_par_iter().map(|s| {
-        let mut ke = 0.0;
-        let mut pe = 0.0;
+fn compute_energies_parallel(
+    state_out: &[f32],
+    n: usize,
+    steps: usize,
+    g: f32,
+    mass: f32,
+) -> Vec<f32> {
+    (0..steps)
+        .into_par_iter()
+        .map(|s| {
+            let mut ke = 0.0;
+            let mut pe = 0.0;
 
-        // kinetic
-        for i in 0..n {
-            let offset = (s * n + i) * 6;
-            let vx = state_out[offset + 3];
-            let vy = state_out[offset + 4];
-            let vz = state_out[offset + 5];
-            ke += 0.5 * mass * (vx * vx + vy * vy + vz * vz);
-        }
-
-        // potential (pairwise)
-        let base_offset = s * n * 6;
-
-        for i in 0..n {
-            let xi = state_out[base_offset + i * 6 + 0];
-            let yi = state_out[base_offset + i * 6 + 1];
-            let zi = state_out[base_offset + i * 6 + 2];
-
-            for j in 0..n {
-                if i == j {
-                    continue;
-                }
-
-                let xj = state_out[base_offset + j * 6 + 0];
-                let yj = state_out[base_offset + j * 6 + 1];
-                let zj = state_out[base_offset + j * 6 + 2];
-
-                let dx = xi - xj;
-                let dy = yi - yj;
-                let dz = zi - zj;
-                let r = (dx * dx + dy * dy + dz * dz).sqrt();
-
-                pe -= g * mass * mass / r;
+            // kinetic
+            for i in 0..n {
+                let offset = (s * n + i) * 6;
+                let vx = state_out[offset + 3];
+                let vy = state_out[offset + 4];
+                let vz = state_out[offset + 5];
+                ke += 0.5 * mass * (vx * vx + vy * vy + vz * vz);
             }
-        }
 
-        ke + pe
-    }).collect()
+            // potential (pairwise)
+            let base_offset = s * n * 6;
+
+            for i in 0..n {
+                let xi = state_out[base_offset + i * 6 + 0];
+                let yi = state_out[base_offset + i * 6 + 1];
+                let zi = state_out[base_offset + i * 6 + 2];
+
+                for j in 0..n {
+                    if i == j {
+                        continue;
+                    }
+
+                    let xj = state_out[base_offset + j * 6 + 0];
+                    let yj = state_out[base_offset + j * 6 + 1];
+                    let zj = state_out[base_offset + j * 6 + 2];
+
+                    let dx = xi - xj;
+                    let dy = yi - yj;
+                    let dz = zi - zj;
+                    let r = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                    pe -= g * mass * mass / r;
+                }
+            }
+
+            ke + pe
+        })
+        .collect()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -156,7 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let z = 0.0;
         let v = (G * M_S / r).sqrt();
         let vx = -v * theta.sin();
-        let vy =  v * theta.cos();
+        let vy = v * theta.cos();
         let vz = 0.0;
 
         let offset = i * 6;
@@ -240,38 +251,37 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut erf = File::create("rk_error.csv")?;
     writeln!(erf, "step,particle,rk_err")?;
     for s in 0..STEPS {
-        let row = &rk_err[s * N .. (s + 1) * N];
+        let row = &rk_err[s * N..(s + 1) * N];
         for (i, &e) in row.iter().enumerate() {
             writeln!(erf, "{},{},{}", s, i, e)?;
         }
     }
 
-    
     let radii: Array1<f32> = Array1::linspace(0.0, 4.0, 200);
-    let mut file_s  = File::create("sphericalcutoff.csv")?;
+    let mut file_s = File::create("sphericalcutoff.csv")?;
     let mut file_mn = File::create("miyamoto_nagai.csv")?;
-    let mut file_nfw= File::create("navarro_frenk_white.csv")?;
-    writeln!(file_s,  "x,ax")?;
+    let mut file_nfw = File::create("navarro_frenk_white.csv")?;
+    writeln!(file_s, "x,ax")?;
     writeln!(file_mn, "x,ax")?;
-    writeln!(file_nfw,"x,ax")?;
+    writeln!(file_nfw, "x,ax")?;
 
     let y = 0.0;
     let z = 0.0;
     let alpha = 1.8;
-    let r1    = 1.0;
-    let c2    = 1.0;
-    let a_mn  = 1.0;
-    let b_mn  = 0.1;
-    let a_nfw = 1.0;
+    let r1 = 1.0;
+    let c2 = powf(1.9 / 8., 2.);
+    let a_mn = 3. / 8.;
+    let b_mn = 0.28 / 8.;
+    let a_nfw = 16. / 8.;
 
     for x in radii.iter().copied() {
-        let (ax_s,  _, _) = sphericalcutoff_force(x, y, z, AMP_S,  alpha, r1, c2);
+        let (ax_s, _, _) = sphericalcutoff_force(x, y, z, AMP_S, alpha, r1, c2);
         let (ax_mn, _, _) = miyamoto_nagai_force(x, y, z, AMP_MN, a_mn, b_mn);
-        let (ax_nfw,_, _) = navarro_frenk_white_force(x, y, z, AMP_NFW, a_nfw);
+        let (ax_nfw, _, _) = navarro_frenk_white_force(x, y, z, AMP_NFW, a_nfw);
 
-        writeln!(file_s,  "{},{}", x, ax_s)?;
+        writeln!(file_s, "{},{}", x, ax_s)?;
         writeln!(file_mn, "{},{}", x, ax_mn)?;
-        writeln!(file_nfw,"{},{}", x, ax_nfw)?;
+        writeln!(file_nfw, "{},{}", x, ax_nfw)?;
     }
 
     Ok(())
@@ -283,7 +293,7 @@ const PI: f32 = 3.14159265358979323846264338327950288;
 
 const AMP_S: f32 = 67168.3897826272;
 const AMP_MN: f32 = 0.7574802019;
-const AMP_NFW: f32 = 7.03716754404;
+const AMP_NFW: f32 = 23.7504404611;
 
 #[inline(always)]
 fn sphericalcutoff_force(
@@ -297,7 +307,7 @@ fn sphericalcutoff_force(
 ) -> (f32, f32, f32) {
     let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
     let r = sqrtf(r2);
-    let ar = -amp * (powf(r1 / r, alpha) * (alpha * c2 + 2. * r2) * expf(-r2 / c2)) / (r * c2);
+    let ar = (-amp * powf(r1 / r, alpha) * (alpha * c2 + 2. * r2) * expf(-r2 / c2)) / (r * c2);
     let ax = ar * (x / r);
     let ay = ar * (y / r);
     let az = ar * (z / r);
@@ -327,4 +337,3 @@ fn miyamoto_nagai_force(x: f32, y: f32, z: f32, amp: f32, a: f32, b: f32) -> (f3
     let az = -z * (a + sqrtz2b2) / (sqrtz2b2 * denom);
     (ax, ay, az)
 }
-
