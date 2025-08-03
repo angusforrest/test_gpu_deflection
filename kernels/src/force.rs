@@ -7,12 +7,12 @@ const PI: f32 = 3.14159265358979323846264338327950288;
 #[inline(always)]
 fn sphericalcutoff_force(r: f32, amp: f32, alpha: f32, r1: f32, c2: f32) -> f32 {
     let r2 = powf(r, 2);
-    -amp * ((r1 / r) * (alpha * c2 + 2 * r2) * expf(-r2 / c2)) / (r * c2)
+    -amp * (powf(r1 / r, alpha) * (alpha * c2 + 2 * r2) * expf(-r2 / c2)) / (r * c2)
 }
 fn navarro_frenk_white_force(r: f32, amp: f32, a: f32) -> f32 {
     let ar3 = powf((a + r), 3);
     let r2 = powf(r, 2);
-    -amp * (1 / 4 * PI) * ((a + 3 * r) / (r2 * ar3))
+    -amp * (1 / (4 * PI)) * ((a + 3 * r) / (r2 * ar3))
 }
 fn miyamoto_nagai_force(R: f32, z: f32, amp: f32, a: f32, b: f32) -> (f32, f32) {
     let z2 = powf(z, 2);
