@@ -297,6 +297,22 @@ const AMP_MN: f32 = 0.7574802019;
 const AMP_NFW: f32 = 4.852230533528;
 
 #[inline(always)]
+fn gamma_p(a: f32, x: f32) -> f32 {
+    println!("{a} {x}");
+    let af: f64 = a as f64;
+    let xf: f64 = x as f64;
+    let mut sum: f64 = 1.;
+    let mut term: f64 = 1.;
+    let mut denom: f64 = 1.;
+    for n in 1..40 {
+        denom = af + (n as f64);
+        term *= xf / denom;
+        sum += term;
+        println!("{denom} {term} {sum}");
+    }
+    sum as f32
+}
+#[inline(always)]
 fn sphericalcutoff_force(
     x: f32,
     y: f32,
@@ -308,7 +324,7 @@ fn sphericalcutoff_force(
 ) -> (f32, f32, f32) {
     let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
     let r = sqrtf(r2);
-    let ar = (-amp * powf(r1 / r, alpha) * (alpha * c2 + 2. * r2) * expf(-r2 / c2)) / (r * c2);
+    let ar = 2. * PI * 1.48919 * gamma_p(0.6, r2 / c2);
     let ax = ar * (x / r);
     let ay = ar * (y / r);
     let az = ar * (z / r);
