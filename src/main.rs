@@ -6,14 +6,18 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::Write;
 use rayon::prelude::*;
+use ndarray::Array1;
+use libm::expf;
+use libm::powf;
+use libm::sqrtf;
 
 const N: usize = 1024;
 const STEPS: usize = 1000;
 const DT: f32 = 0.01;
 const M_S: f32 = 1.0;
 const G: f32 = 39.5;
-const ATOL: f32 = 1e-5;
-const RTOL: f32 = 1e-3;
+const ATOL: f32 = 1.49e-12;
+const RTOL: f32 = 1.49e-12;
 static PTX: &str = include_str!(concat!(env!("OUT_DIR"), "/kernels.ptx"));
 
 const SIGMA: f32 = 10.0;
@@ -242,5 +246,85 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    
+    let radii: Array1<f32> = Array1::linspace(0.0, 4.0, 200);
+    let mut file_s  = File::create("sphericalcutoff.csv")?;
+    let mut file_mn = File::create("miyamoto_nagai.csv")?;
+    let mut file_nfw= File::create("navarro_frenk_white.csv")?;
+    writeln!(file_s,  "x,ax")?;
+    writeln!(file_mn, "x,ax")?;
+    writeln!(file_nfw,"x,ax")?;
+
+    let y = 0.0;
+    let z = 0.0;
+    let alpha = 1.8;
+    let r1    = 1.0;
+    let c2    = 1.0;
+    let a_mn  = 1.0;
+    let b_mn  = 0.1;
+    let a_nfw = 1.0;
+
+    for x in radii.iter().copied() {
+        let (ax_s,  _, _) = sphericalcutoff_force(x, y, z, AMP_S,  alpha, r1, c2);
+        let (ax_mn, _, _) = miyamoto_nagai_force(x, y, z, AMP_MN, a_mn, b_mn);
+        let (ax_nfw,_, _) = navarro_frenk_white_force(x, y, z, AMP_NFW, a_nfw);
+
+        writeln!(file_s,  "{},{}", x, ax_s)?;
+        writeln!(file_mn, "{},{}", x, ax_mn)?;
+        writeln!(file_nfw,"{},{}", x, ax_nfw)?;
+    }
+
     Ok(())
 }
+
+// TEMP
+
+const PI: f32 = 3.14159265358979323846264338327950288;
+
+const AMP_S: f32 = 67168.3897826272;
+const AMP_MN: f32 = 0.7574802019;
+const AMP_NFW: f32 = 7.03716754404;
+
+#[inline(always)]
+fn sphericalcutoff_force(
+    x: f32,
+    y: f32,
+    z: f32,
+    amp: f32,
+    alpha: f32,
+    r1: f32,
+    c2: f32,
+) -> (f32, f32, f32) {
+    let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
+    let r = sqrtf(r2);
+    let ar = -amp * (powf(r1 / r, alpha) * (alpha * c2 + 2. * r2) * expf(-r2 / c2)) / (r * c2);
+    let ax = ar * (x / r);
+    let ay = ar * (y / r);
+    let az = ar * (z / r);
+    (ax, ay, az)
+}
+fn navarro_frenk_white_force(x: f32, y: f32, z: f32, amp: f32, a: f32) -> (f32, f32, f32) {
+    let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
+    let r = sqrtf(r2);
+    let ar3 = powf((a + r), 3.);
+    let ar = -amp * (1. / (4. * PI)) * ((a + 3. * r) / (r2 * ar3));
+    let ax = ar * (x / r);
+    let ay = ar * (y / r);
+    let az = ar * (z / r);
+    (ax, ay, az)
+}
+fn miyamoto_nagai_force(x: f32, y: f32, z: f32, amp: f32, a: f32, b: f32) -> (f32, f32, f32) {
+    let R2 = powf(x, 2.) + powf(y, 2.);
+    let R = sqrtf(R2);
+    let z2 = powf(z, 2.);
+    let b2 = powf(b, 2.);
+    let sqrtz2b2 = sqrtf(z2 + b2);
+    let pyth = powf(a + sqrtz2b2, 2.);
+    let denom = powf(pyth + R2, 3. / 2.);
+    let aR = -amp * (R / denom);
+    let ax = aR * (x / R);
+    let ay = aR * (y / R);
+    let az = -z * (a + sqrtz2b2) / (sqrtz2b2 * denom);
+    (ax, ay, az)
+}
+

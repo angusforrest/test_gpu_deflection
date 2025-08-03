@@ -1151,6 +1151,7 @@ dependencies = [
  "cuda_std",
  "cust",
  "cust_raw",
+ "libm",
  "ndarray",
  "ndarray-rand",
  "rand 0.9.2",
