@@ -20,20 +20,20 @@ fn sphericalcutoff_force(
 ) -> (f32, f32, f32) {
     let r2 = powf(x, 2) + powf(y, 2) + powf(z, 2);
     let r = sqrtf(r2);
-    let a = -amp * (powf(r1 / r, alpha) * (alpha * c2 + 2 * r2) * expf(-r2 / c2)) / (r * c2);
-    let ax = a * (x / r);
-    let ay = a * (y / r);
-    let az = a * (z / r);
+    let ar = -amp * (powf(r1 / r, alpha) * (alpha * c2 + 2 * r2) * expf(-r2 / c2)) / (r * c2);
+    let ax = ar * (x / r);
+    let ay = ar * (y / r);
+    let az = ar * (z / r);
     (ax, ay, az)
 }
 fn navarro_frenk_white_force(x: f32, y: f32, z: f32, amp: f32, a: f32) -> (f32, f32, f32) {
     let r2 = powf(x, 2) + powf(y, 2) + powf(z, 2);
     let r = sqrtf(r2);
     let ar3 = powf((a + r), 3);
-    let a = -amp * (1 / (4 * PI)) * ((a + 3 * r) / (r2 * ar3));
-    let ax = a * (x / r);
-    let ay = a * (y / r);
-    let az = a * (z / r);
+    let ar = -amp * (1 / (4 * PI)) * ((a + 3 * r) / (r2 * ar3));
+    let ax = ar * (x / r);
+    let ay = ar * (y / r);
+    let az = ar * (z / r);
     (ax, ay, az)
 }
 fn miyamoto_nagai_force(x: f32, y: f32, z: f32, amp: f32, a: f32, b: f32) -> (f32, f32, f32) {
