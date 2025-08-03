@@ -258,7 +258,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let radii: Array1<f32> = Array1::linspace(0.0, 4.0, 200);
+    let radii: Array1<f32> = Array1::linspace(0.0, 4.0, 201);
     let mut file_s = File::create("sphericalcutoff.csv")?;
     let mut file_mn = File::create("miyamoto_nagai.csv")?;
     let mut file_nfw = File::create("navarro_frenk_white.csv")?;
@@ -280,7 +280,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let (ax_mn, _, _) = miyamoto_nagai_force(x, y, z, AMP_MN, a_mn, b_mn);
         let (ax_nfw, _, _) = navarro_frenk_white_force(x, y, z, AMP_NFW, a_nfw);
 
-        writeln!(file_s, "{},{}", x, ax_s)?;
+        // writeln!(file_s, "{},{}", x, ax_s)?;
         writeln!(file_mn, "{},{}", x, ax_mn)?;
         writeln!(file_nfw, "{},{}", x, ax_nfw)?;
     }
