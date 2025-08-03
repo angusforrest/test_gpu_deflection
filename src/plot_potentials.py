@@ -33,7 +33,7 @@ x_n = R / R0
 # y_b = vc_b / vc0_total
 # y_d = vc_d / vc0_total
 # y_h = vc_h / vc0_total
-
+print(vc_all[50])
 plt.figure(figsize=(7, 5), dpi=300)
 plt.plot(x_n, vc_d, "--", linewidth=2.0, color="black", label="Disk")
 plt.plot(x_n, vc_h, ":", linewidth=2.0, color="green", label="Halo")

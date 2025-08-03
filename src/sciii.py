@@ -27,9 +27,10 @@ acc = _mass(rs) / rs**2
 print(f"unnormalised acceleration {acc}")
 print(f"normalised acceleration {0.05 * acc / acc[50]}")
 print(f"vel {numpy.sqrt(rs * (0.05 * acc / acc[50]))}")
+print(0.05 / acc[50])
 nacc = 0.05 * acc / acc[50]
 output = numpy.stack([rs, nacc])
-numpy.savetxt("../sphericalcutoff.csv", output.T, delimiter=",")
+numpy.savetxt("../pysphericalcutoff.csv", output.T, delimiter=",")
 # print(numpy.sqrt(0.05 * _mass(rs) / rs / (numpy.sqrt(_mass(rs) / rs**2)[50])))
 # print(2 * np.pi * sc.gamma(0.6) * (1 - sc.gammaincc(0.6, r2c2s)))
 # print(

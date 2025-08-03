@@ -1,11 +1,15 @@
 use cust::prelude::*;
 use libm::expf;
 use libm::logf;
+use libm::pow;
 use libm::powf;
+use libm::sqrt;
 use libm::sqrtf;
 use ndarray::Array1;
 use rand::Rng;
 use rayon::prelude::*;
+use statrs::function::gamma::gamma;
+use statrs::function::gamma::gamma_lr;
 use std::error::Error;
 use std::f32::consts::TAU;
 use std::ffi::CString;
@@ -270,17 +274,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     let z = 0.0;
     let alpha = 1.8;
     let r1 = 1.0;
-    let c2 = powf(1.9 / 8., 2.);
+    let c2 = pow(1.9 / 8., 2.);
     let a_mn = 3. / 8.;
     let b_mn = 0.28 / 8.;
     let a_nfw = 16. / 8.;
 
     for x in radii.iter().copied() {
-        let (ax_s, _, _) = sphericalcutoff_force(x, y, z, AMP_S, alpha, r1, c2);
         let (ax_mn, _, _) = miyamoto_nagai_force(x, y, z, AMP_MN, a_mn, b_mn);
         let (ax_nfw, _, _) = navarro_frenk_white_force(x, y, z, AMP_NFW, a_nfw);
+        let (ax_s, _, _) = sphericalcutoff_force(
+            x as f64,
+            y as f64,
+            z as f64,
+            AMP_S as f64,
+            alpha as f64,
+            r1 as f64,
+            c2 as f64,
+        );
 
-        // writeln!(file_s, "{},{}", x, ax_s)?;
+        writeln!(file_s, "{},{}", x, ax_s)?;
         writeln!(file_mn, "{},{}", x, ax_mn)?;
         writeln!(file_nfw, "{},{}", x, ax_nfw)?;
     }
@@ -291,49 +303,76 @@ fn main() -> Result<(), Box<dyn Error>> {
 // TEMP
 
 const PI: f32 = 3.14159265358979323846264338327950288;
-
-const AMP_S: f32 = 67168.3897826272;
+const AMP_S: f32 = 0.029994597188218296;
 const AMP_MN: f32 = 0.7574802019;
 const AMP_NFW: f32 = 4.852230533528;
 
-#[inline(always)]
-fn gamma_p(a: f32, x: f32) -> f32 {
-    println!("{a} {x}");
-    let af: f64 = a as f64;
-    let xf: f64 = x as f64;
-    let mut sum: f64 = 1.;
-    let mut term: f64 = 1.;
-    let mut denom: f64 = 1.;
-    for n in 1..40 {
-        denom = af + (n as f64);
-        term *= xf / denom;
-        sum += term;
-        println!("{denom} {term} {sum}");
-    }
-    sum as f32
+pub fn mass(r2: f64, alpha: f64, rc: f64) -> f64 {
+    2.0 * 3.14159265358979323846264338327950288
+        * pow(rc, 3.0 - alpha)
+        * gamma(1.5 - 0.5 * alpha)
+        * gamma_lr(1.5 - 0.5 * alpha, r2 / (rc * rc))
 }
+
 #[inline(always)]
 fn sphericalcutoff_force(
-    x: f32,
-    y: f32,
-    z: f32,
-    amp: f32,
-    alpha: f32,
-    r1: f32,
-    c2: f32,
-) -> (f32, f32, f32) {
-    let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
-    let r = sqrtf(r2);
-    let ar = 2. * PI * 1.48919 * gamma_p(0.6, r2 / c2);
+    x: f64,
+    y: f64,
+    z: f64,
+    amp: f64,
+    alpha: f64,
+    r1: f64,
+    c2: f64,
+) -> (f64, f64, f64) {
+    let r2 = pow(x, 2.) + pow(y, 2.) + pow(z, 2.);
+    if r2 == 0.0 {
+        return (0.0, 0.0, 0.0);
+    }
+    let r = sqrt(r2);
+    let rc = sqrt(c2);
+
+    let m = amp * pow(r1, alpha) * mass(r2, alpha, rc);
+
+    let ar = -m / r2;
     let ax = ar * (x / r);
     let ay = ar * (y / r);
     let az = ar * (z / r);
     (ax, ay, az)
 }
+
+// #[inline(always)]
+// fn sphericalcutoff_force(
+//     x: f32,
+//     y: f32,
+//     z: f32,
+//     amp: f32,
+//     alpha: f32,
+//     r1: f32,
+//     c2: f32,
+// ) -> (f32, f32, f32) {
+//     // println!("{x},{alpha},{c2}");
+//     let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
+//     let r = sqrtf(r2);
+//     let c = powf(c2, 0.5);
+//     if r2 / c2 == 0.0 {
+//         return (0.0, 0.0, 0.0);
+//     }
+//     let m = gamma_li(0.6, (r2 / c2) as f64);
+//     println!("{m}");
+//     let ar = 2. * PI * powf(c, 3.0 - alpha) / r
+//         * (gamma(1.5 - 0.5 * (alpha as f64)) as f32
+//             * gamma_li(1.5 - 0.5 * (alpha as f64), (r2 / c2) as f64) as f32)
+//         /;
+//     // let ar = 2. * PI * powf(c, 3.0 - alpha) / r * (gamma(0.6) as f32 * gamma_li(0.6, 200.0) as f32);
+//     let ax = ar * (x / r);
+//     let ay = ar * (y / r);
+//     let az = ar * (z / r);
+//     (ax, ay, az)
+// }
 fn navarro_frenk_white_force(x: f32, y: f32, z: f32, amp: f32, a: f32) -> (f32, f32, f32) {
     let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
     let r = sqrtf(r2);
-    let ar = amp * (logf(1. + r / a) - r / (a + r)) / r2;
+    let ar = -amp * (logf(1. + r / a) - r / (a + r)) / r2;
     let ax = ar * (x / r);
     let ay = ar * (y / r);
     let az = ar * (z / r);
