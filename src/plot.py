@@ -6,8 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 df = pd.read_csv("../particle_orbit.csv")
 
 fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.plot(df['x'], df['y'], df['z'])
+ax = fig.add_subplot(111, projection="3d")
+ax.plot(df["x"], df["y"], df["z"])
 ax.set_title("3D Orbit of p0")
 ax.set_xlabel("x (AU)")
 ax.set_ylabel("y (AU)")
@@ -20,10 +20,10 @@ plt.savefig("orbit_test_3d.png")
 df_energy = pd.read_csv("../energy.csv")
 
 # relative error vs initial energy
-e0 = df_energy['energy'].iloc[0]
-rel_error = abs((df_energy['energy'] - e0) / e0)
+e0 = df_energy["energy"].iloc[0]
+rel_error = abs((df_energy["energy"] - e0) / e0)
 plt.figure()
-plt.semilogy(df_energy['step'], rel_error)
+plt.semilogy(df_energy["step"], rel_error)
 plt.xlabel("Step")
 plt.ylabel("|(E(t)-E0)/E0|")
 plt.title("Relative energy error over time")
@@ -33,15 +33,23 @@ plt.savefig("energy_error.png")
 
 # Parallel computation check
 df_energy_parallel = pd.read_csv("../energy_parallel.csv")
-assert (df_energy['step'] == df_energy_parallel['step']).all(), "Steps don't align"
+assert (df_energy["step"] == df_energy_parallel["step"]).all(), (
+    "Steps don't align"
+)
 
 # overlaid
-e0 = df_energy['energy'].iloc[0]
-rel_seq = abs((df_energy['energy'] - e0) / e0)
-rel_par = abs((df_energy_parallel['energy'] - e0) / e0)
+e0 = df_energy["energy"].iloc[0]
+rel_seq = abs((df_energy["energy"] - e0) / e0)
+rel_par = abs((df_energy_parallel["energy"] - e0) / e0)
 plt.figure()
-plt.semilogy(df_energy['step'], rel_seq, label="Sequential", linewidth=1.2)
-plt.semilogy(df_energy_parallel['step'], rel_par, label="Parallel", linestyle='--', linewidth=1.2)
+plt.semilogy(df_energy["step"], rel_seq, label="Sequential", linewidth=1.2)
+plt.semilogy(
+    df_energy_parallel["step"],
+    rel_par,
+    label="Parallel",
+    linestyle="--",
+    linewidth=1.2,
+)
 plt.xlabel("Step")
 plt.ylabel("|(E(t)-E0)/E0|")
 plt.title("Relative Energy Error")
@@ -50,9 +58,9 @@ plt.grid(True)
 plt.savefig("energy_comparison.png")
 
 # abs. diff
-energy_diff = abs(df_energy['energy'] - df_energy_parallel['energy'])
+energy_diff = abs(df_energy["energy"] - df_energy_parallel["energy"])
 plt.figure()
-plt.plot(df_energy['step'], energy_diff)
+plt.plot(df_energy["step"], energy_diff)
 plt.xlabel("Step")
 plt.ylabel("|E_seq - E_par|")
 plt.title("Absolute Energy Difference")

@@ -1,5 +1,6 @@
 use cust::prelude::*;
 use libm::expf;
+use libm::logf;
 use libm::powf;
 use libm::sqrtf;
 use ndarray::Array1;
@@ -293,7 +294,7 @@ const PI: f32 = 3.14159265358979323846264338327950288;
 
 const AMP_S: f32 = 67168.3897826272;
 const AMP_MN: f32 = 0.7574802019;
-const AMP_NFW: f32 = 23.7504404611;
+const AMP_NFW: f32 = 4.852230533528;
 
 #[inline(always)]
 fn sphericalcutoff_force(
@@ -316,8 +317,7 @@ fn sphericalcutoff_force(
 fn navarro_frenk_white_force(x: f32, y: f32, z: f32, amp: f32, a: f32) -> (f32, f32, f32) {
     let r2 = powf(x, 2.) + powf(y, 2.) + powf(z, 2.);
     let r = sqrtf(r2);
-    let ar3 = powf((a + r), 3.);
-    let ar = -amp * (1. / (4. * PI)) * ((a + 3. * r) / (r2 * ar3));
+    let ar = amp * (logf(1. + r / a) - r / (a + r)) / r2;
     let ax = ar * (x / r);
     let ay = ar * (y / r);
     let az = ar * (z / r);
