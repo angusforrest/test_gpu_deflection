@@ -1,12 +1,70 @@
-use cuda_std::{kernel, thread};
-use libm::{pow, sqrt, log, floor};
 use crate::butcher::{ButcherTableau, DormandPrince54 as Coeffs};
+use cuda_std::{kernel, thread};
+use libm::{floor, log, pow, sqrt};
 
 const M_S: f64 = 1.0;
 const G: f64 = 39.5;
 
+unsafe fn sphericalcutoff_potential(
+    x: f64,
+    y: f64,
+    z: f64,
+    p_table: *const f64,
+    r_min: f64,
+    dr: f64,
+    n_p: u32,
+) -> f64 {
+    let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
+    if r2 == 0.0 {
+        return (0.0, 0.0, 0.0);
+    }
+    let r = sqrt(r2);
+    let t = (r - r_min) / dr;
+    let i = floor(t) as usize;
+    let f = t - i as f64;
+
+    // linear interpolation
+    let i0 = i.min((n_p - 2) as usize);
+    let p0 = *p_table.add(i0);
+    let p1 = *p_table.add(i0 + 1);
+    (1.0 - f) * p0 + f * p1
+}
+
+unsafe fn navarro_frenk_white_potential(x: f64, y: f64, z: f64, amp: f64, a: f64) -> f64 {
+    let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
+    let r = sqrt(r2);
+    -amp * log(1. + r / a) / r
+}
+
+unsafe fn miyamoto_nagai_potential(x: f64, y: f64, z: f64, amp: f64, a: f64, b: f64) -> f64 {
+    let R2 = pow(x, 2.) + pow(y, 2.);
+    -amp * pow(R2 + pow(a + pow(z * z + b * b, 0.5), 2.), -0.5);
+}
+
+unsafe fn plummer_potential(x: f64, y: f64, z: f64, amp: f64, b: f64) -> f64 {
+    let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
+    return -amp / sqrt(r2 + pow(b, 2.0));
+}
+
+unsafe fn plummer_force(x: f64, y: f64, z: f64, amp: f64, b: f64) -> f64 {
+    let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
+    let ar = -amp * pow(r2 + pow(b, 2.0), -1.5);
+    let ax = ar * x;
+    let ay = ar * y;
+    let az = ar * z;
+    (ax, ay, az)
+}
+
 #[inline(always)]
-unsafe fn sphericalcutoff_force_tabled(x: f64, y: f64, z: f64, ar_table: *const f64, r_min: f64, dr: f64, n_ar: u32) -> (f64, f64, f64) {
+unsafe fn sphericalcutoff_force_tabled(
+    x: f64,
+    y: f64,
+    z: f64,
+    ar_table: *const f64,
+    r_min: f64,
+    dr: f64,
+    n_ar: u32,
+) -> (f64, f64, f64) {
     let r2 = pow(x, 2.0) + pow(y, 2.0) + pow(z, 2.0);
     if r2 == 0.0 {
         return (0.0, 0.0, 0.0);
@@ -79,13 +137,8 @@ pub unsafe fn mw2014_force(
     let (dx, dy, dz) = miyamoto_nagai_force(x, y, z, disk_amp, disk_a, disk_b);
     let (hx, hy, hz) = navarro_frenk_white_force(x, y, z, halo_amp, halo_a);
 
-    (
-        bx + dx + hx,
-        by + dy + hy,
-        bz + dz + hz,
-    )
+    (bx + dx + hx, by + dy + hy, bz + dz + hz)
 }
-
 
 // Previous
 #[inline(always)]
@@ -96,31 +149,43 @@ fn compute_acceleration(t: f64, x: f64, y: f64, z: f64) -> (f64, f64, f64) {
     (a * x, a * y, a * z)
 }
 
-
 #[inline(always)]
 pub fn rk_norm(
-    x: f64, x_new: f64, err_x: f64,
-    y: f64, y_new: f64, err_y: f64,
-    z: f64, z_new: f64, err_z: f64,
-    vx: f64, vx_new: f64, err_vx: f64,
-    vy: f64, vy_new: f64, err_vy: f64,
-    vz: f64, vz_new: f64, err_vz: f64,
-    atol: f64, rtol: f64
+    x: f64,
+    x_new: f64,
+    err_x: f64,
+    y: f64,
+    y_new: f64,
+    err_y: f64,
+    z: f64,
+    z_new: f64,
+    err_z: f64,
+    vx: f64,
+    vx_new: f64,
+    err_vx: f64,
+    vy: f64,
+    vy_new: f64,
+    err_vy: f64,
+    vz: f64,
+    vz_new: f64,
+    err_vz: f64,
+    atol: f64,
+    rtol: f64,
 ) -> f64 {
-    let sc_x  = atol + rtol * f64::max(x.abs(),  x_new.abs());
-    let sc_y  = atol + rtol * f64::max(y.abs(),  y_new.abs());
-    let sc_z  = atol + rtol * f64::max(z.abs(),  z_new.abs());
+    let sc_x = atol + rtol * f64::max(x.abs(), x_new.abs());
+    let sc_y = atol + rtol * f64::max(y.abs(), y_new.abs());
+    let sc_z = atol + rtol * f64::max(z.abs(), z_new.abs());
     let sc_vx = atol + rtol * f64::max(vx.abs(), vx_new.abs());
     let sc_vy = atol + rtol * f64::max(vy.abs(), vy_new.abs());
     let sc_vz = atol + rtol * f64::max(vz.abs(), vz_new.abs());
 
     // might need to guard against div by 0
     let sum = pow(err_x / sc_x, 2.0)
-            + pow(err_y / sc_y, 2.0)
-            + pow(err_z / sc_z, 2.0)
-            + pow(err_vx / sc_vx, 2.0)
-            + pow(err_vy / sc_vy, 2.0)
-            + pow(err_vz / sc_vz, 2.0);
+        + pow(err_y / sc_y, 2.0)
+        + pow(err_z / sc_z, 2.0)
+        + pow(err_vx / sc_vx, 2.0)
+        + pow(err_vy / sc_vy, 2.0)
+        + pow(err_vz / sc_vz, 2.0);
 
     sqrt(sum / 6.0)
 }
@@ -169,23 +234,23 @@ pub unsafe fn dopr54_adaptive(
 
     // per-particle
     let done_i_u = *done.add(tid) as u32; // 0/1
-    let done_i   = done_i_u as f64;       // 0.0/1.0
+    let done_i = done_i_u as f64; // 0.0/1.0
     let not_done = 1.0_f64 - done_i;
 
-    let mut ti  = *t.add(tid);
+    let mut ti = *t.add(tid);
     let mut dti = *dt.add(tid);
-    let mut wi  = *w.add(tid) as usize;
+    let mut wi = *w.add(tid) as usize;
 
     // clamp dt and prevent overshoot
-    let rem    = t_end - ti;
+    let rem = t_end - ti;
     let rempos = if rem > 0.0 { rem } else { 0.0 };
     let dt_eff = f64::min(f64::max(dti, dt_min), f64::min(dt_max, rempos));
 
     // load the "previous/current" state from step 'wi'
     let prev_offset = ((wi * n) + tid) * 6;
-    let x  = *state_out.add(prev_offset + 0);
-    let y  = *state_out.add(prev_offset + 1);
-    let z  = *state_out.add(prev_offset + 2);
+    let x = *state_out.add(prev_offset + 0);
+    let y = *state_out.add(prev_offset + 1);
+    let z = *state_out.add(prev_offset + 2);
     let vx = *state_out.add(prev_offset + 3);
     let vy = *state_out.add(prev_offset + 4);
     let vz = *state_out.add(prev_offset + 5);
@@ -212,9 +277,9 @@ pub unsafe fn dopr54_adaptive(
         while j < i {
             let aij = Coeffs::A[i][j] as f64;
             let s = dt_eff * aij;
-            xi  += s * rk_x[j];
-            yi  += s * rk_y[j];
-            zi  += s * rk_z[j];
+            xi += s * rk_x[j];
+            yi += s * rk_y[j];
+            zi += s * rk_z[j];
             vxi += s * rk_vx[j];
             vyi += s * rk_vy[j];
             vzi += s * rk_vz[j];
@@ -225,18 +290,18 @@ pub unsafe fn dopr54_adaptive(
         // let (axi, ayi, azi) = compute_acceleration(t_stage, xi, yi, zi);
         let (axi, ayi, azi) = mw2014_force(xi, yi, zi, ar_table, r_min, dr, n_ar);
 
-        rk_x[i]  = vxi;
-        rk_y[i]  = vyi;
-        rk_z[i]  = vzi;
+        rk_x[i] = vxi;
+        rk_y[i] = vyi;
+        rk_z[i] = vzi;
         rk_vx[i] = axi;
         rk_vy[i] = ayi;
         rk_vz[i] = azi;
     }
 
     // 5th-order combination
-    let mut x_new  = x;
-    let mut y_new  = y;
-    let mut z_new  = z;
+    let mut x_new = x;
+    let mut y_new = y;
+    let mut z_new = z;
     let mut vx_new = vx;
     let mut vy_new = vy;
     let mut vz_new = vz;
@@ -244,9 +309,9 @@ pub unsafe fn dopr54_adaptive(
     for i in 0..Coeffs::STAGES {
         let b = Coeffs::B[i] as f64;
         let s = dt_eff * b;
-        x_new  += s * rk_x[i];
-        y_new  += s * rk_y[i];
-        z_new  += s * rk_z[i];
+        x_new += s * rk_x[i];
+        y_new += s * rk_y[i];
+        z_new += s * rk_z[i];
         vx_new += s * rk_vx[i];
         vy_new += s * rk_vy[i];
         vz_new += s * rk_vz[i];
@@ -263,39 +328,33 @@ pub unsafe fn dopr54_adaptive(
     for i in 0..Coeffs::STAGES {
         let b_hat = Coeffs::B_HAT[i] as f64;
         let s = dt_eff * b_hat;
-        x_hat  += s * rk_x[i];
-        y_hat  += s * rk_y[i];
-        z_hat  += s * rk_z[i];
+        x_hat += s * rk_x[i];
+        y_hat += s * rk_y[i];
+        z_hat += s * rk_z[i];
         vx_hat += s * rk_vx[i];
         vy_hat += s * rk_vy[i];
         vz_hat += s * rk_vz[i];
     }
 
     // and compute truncation error est per component
-    let err_x  = x_new  - x_hat;
-    let err_y  = y_new  - y_hat;
-    let err_z  = z_new  - z_hat;
+    let err_x = x_new - x_hat;
+    let err_y = y_new - y_hat;
+    let err_z = z_new - z_hat;
     let err_vx = vx_new - vx_hat;
     let err_vy = vy_new - vy_hat;
     let err_vz = vz_new - vz_hat;
 
     let rk_err = rk_norm(
-        x, x_new, err_x,
-        y, y_new, err_y,
-        z, z_new, err_z,
-        vx, vx_new, err_vx,
-        vy, vy_new, err_vy,
-        vz, vz_new, err_vz,
-        atol, rtol
+        x, x_new, err_x, y, y_new, err_y, z, z_new, err_z, vx, vx_new, err_vx, vy, vy_new, err_vy,
+        vz, vz_new, err_vz, atol, rtol,
     );
 
     if !error_out.is_null() {
         *error_out.add(tid) = rk_err;
     }
 
-
-    let eps   = 1.0e-18_f64; // to avoid err=0 blow-up
-    let exp   = -0.2_f64;
+    let eps = 1.0e-18_f64; // to avoid err=0 blow-up
+    let exp = -0.2_f64;
     let mut fac = safety * pow(rk_err + eps, exp);
     fac = f64::max(fac, fac_min);
     fac = f64::min(fac, fac_max);
@@ -310,9 +369,9 @@ pub unsafe fn dopr54_adaptive(
 
     // for already-done threads, mask all updates with 'not_done'
     // Blend states: on reject, write back old state; on accept, write new state
-    let x_out  = not_done * (accept_f * x_new  + reject_f * x)  + done_i * x;
-    let y_out  = not_done * (accept_f * y_new  + reject_f * y)  + done_i * y;
-    let z_out  = not_done * (accept_f * z_new  + reject_f * z)  + done_i * z;
+    let x_out = not_done * (accept_f * x_new + reject_f * x) + done_i * x;
+    let y_out = not_done * (accept_f * y_new + reject_f * y) + done_i * y;
+    let z_out = not_done * (accept_f * z_new + reject_f * z) + done_i * z;
     let vx_out = not_done * (accept_f * vx_new + reject_f * vx) + done_i * vx;
     let vy_out = not_done * (accept_f * vy_new + reject_f * vy) + done_i * vy;
     let vz_out = not_done * (accept_f * vz_new + reject_f * vz) + done_i * vz;
@@ -320,7 +379,11 @@ pub unsafe fn dopr54_adaptive(
     // Increment write-step only if accepted & not done
     let inc_u = (accept_f * not_done) as u32;
     let wi_next = wi + inc_u as usize;
-    let wi_capped = if wi_next < steps_cap { wi_next } else { steps_cap - 1 };
+    let wi_capped = if wi_next < steps_cap {
+        wi_next
+    } else {
+        steps_cap - 1
+    };
 
     // compute next time
     let ti_new = ti + (accept_f * not_done) * dt_eff;
@@ -338,17 +401,17 @@ pub unsafe fn dopr54_adaptive(
     *state_out.add(out_offset + 5) = vz_out;
 
     // update time (only when accepted & not done); dt always updates for next attempt
-    ti  = ti_new;
+    ti = ti_new;
     dti = dt_new;
-    wi  = wi_capped;
+    wi = wi_capped;
 
     // once done, stay done
     let done_new_u = (ti >= t_end) as u32;
     let done_blend_u = done_i_u | done_new_u;
     let done_blend = (done_blend_u & 1) as u8;
 
-    *t.add(tid)    = ti;
-    *dt.add(tid)   = dti;
-    *w.add(tid)    = wi as u32;
+    *t.add(tid) = ti;
+    *dt.add(tid) = dti;
+    *w.add(tid) = wi as u32;
     *done.add(tid) = done_blend;
 }
